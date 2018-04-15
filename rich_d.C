@@ -1,9 +1,8 @@
 // Author: Rourke Sekelsky
 // Date: 6/15/17
 // This code draws a simple diagram for the RICH detector geometry.
-// Parameters to change manually: max_phi (mirror/window) and  z_stop (max/min)
-// Right now Newton's method functions are not working (maxphi,longf,dlongf).
-// If you want to find the maxphis manually, solve the eqn in longf for y.
+// The reflections stop at an arbitrary parameter z_stop (max/min). This should be changed if you change the geometry and want the reflections.
+
 #include <stdio.h>
 #include <math.h>
 
@@ -14,9 +13,11 @@
 
 double etatophi(double eta);
 double minphi(double Rshift, double Rbeam, double Rfeature);
-// double maxphi(double zshift, double Rshift, double Rfeature, double phi);
-// double longf(double z, double R, double Rf, double p, double y);
-// double dlongf(double z, double R, double Rf, double p, double y);
+
+double maxphi(double zshift, double Rshift, double Rfeature, double phi);
+double longf(double z, double R, double Rf, double p, double y);
+double dlongf(double z, double R, double Rf, double p, double y);
+
 double mirrorlimitz(double zshift, double Rfeature, double angle);
 double mirrorlimitR(double Rshift, double Rfeature, double angle);
 double maxreflection(double maxphi, double maxphimirror, double maxz, double maxR, double maxstop);
@@ -33,7 +34,8 @@ int rich_d()
   hframe->SetTitle("RICH Detector Geometry");
   hframe->GetXaxis()->SetTitle("z [cm]");
   hframe->GetYaxis()->SetTitle("R [cm]");
-  hframe->GetYaxis()->SetRangeUser(0,150);
+  hframe->GetXaxis()->SetRangeUser(0,300);
+  hframe->GetYaxis()->SetRangeUser(0,300);
   hframe->SetLineColor(kWhite);
   hframe->Draw();
 
@@ -41,8 +43,8 @@ int rich_d()
   // Parameters from G4_RICH //
 
 
-  double min_eta = 1.45;
-  double R_mirror = 195;
+  double min_eta = 1.45; // Original: 1.45
+  double R_mirror = 195; // Original: 195
   double z_shift = 75; // Original: 75
   double R_shift = 18.5; // Original: 18.5
 
@@ -68,11 +70,8 @@ int rich_d()
 
   // For maximum phi (in degrees): //
   double max_phi = etatophi(min_eta);
-  double max_phi_mirror = 0.547*180/PI; // Mathematica
-  double max_phi_window = 0.594*180/PI; // Mathematica
-
-  // double max_phi_mirror = maxphi(z_shift, R_shift, R_mirror, max_phi);
-  // double max_phi_window = maxphi(z_shift*Dratio, R_shift*Dratio, R_frontwindow, max_phi);
+  double max_phi_mirror = maxphi(z_shift, R_shift, R_mirror, max_phi)*180/PI;
+  double max_phi_window = maxphi(z_shift*Dratio, R_shift*Dratio, R_frontwindow, max_phi)*180/PI;
 
 
   // Draw features //
@@ -126,7 +125,7 @@ int rich_d()
 
 
   // Drawing the max reflection, stopping at arbitrary point (z_stop, R_stop) //
-  double z_stop_max = 160;
+  double z_stop_max = 160; // Original: 160
   double R_stop_max = maxreflection(max_phi, max_phi_mirror, mirror_max_z, mirror_max_R, z_stop_max);
 
   TLine max_refl(mirror_max_z,mirror_max_R,z_stop_max,R_stop_max);
@@ -136,7 +135,7 @@ int rich_d()
 
   // Drawing the min reflection, same deal //
   double min_phi = atan(mirror_min_R/mirror_min_z) * 180/PI;
-  double z_stop_min = 170;
+  double z_stop_min = 170; // Original: 170
   double R_stop_min = minreflection(min_phi, min_phi_mirror, mirror_min_z, mirror_min_R, z_stop_min);
 
   TLine min_refl(mirror_min_z,mirror_min_R,z_stop_min,R_stop_min);
@@ -186,39 +185,39 @@ double minphi(double Rshift, double Rbeam, double Rfeature)
 }
 
 
-// double maxphi(double zshift, double Rshift, double Rfeature, double phi)
-// {
-//   double x = 0.5;
-
-//   while( longf(zshift, Rshift, Rfeature, phi, x) > pow(10,-6) )
-//     {
-//       x = x - longf(zshift, Rshift, Rfeature, phi, x) / dlongf(zshift, Rshift, Rfeature, phi, x);
-//     }
-
-//   return x;
-// }
-
-
-// double longf(double z, double R, double Rf, double p, double y)
-// {
-//   double hypot = sqrt( pow(z,2) + pow(R,2) );
-//   double alpha = atan( R/z );
-
-//   double result = Rf * cos(y) - cos(p*PI/180) * sqrt( pow(hypot,2) + pow(Rf,2) - 2*hypot*Rf*cos( PI + alpha - y ) ) + z;
-
-//   return result;
-// }
+double maxphi(double zshift, double Rshift, double Rfeature, double phi)
+{
+  double x = 0.5;
+  
+  while( longf(zshift, Rshift, Rfeature, phi, x) > pow(10,-6) )
+    {
+      x = x - longf(zshift, Rshift, Rfeature, phi, x) / dlongf(zshift, Rshift, Rfeature, phi, x);
+    }
+  
+  return x;
+}
 
 
-// double dlongf(double z, double R, double Rf, double p, double y)
-// {
-//   double hypot = sqrt( pow(z,2) + pow(R,2) );
-//   double alpha = atan( R/z );
+double longf(double z, double R, double Rf, double p, double y)
+{
+  double hypot = sqrt( pow(z,2) + pow(R,2) );
+  double alpha = atan( R/z );
+  
+  double result = Rf * cos(y) - cos(p*PI/180) * sqrt( pow(hypot,2) + pow(Rf,2) - 2*hypot*Rf*cos( PI + alpha - y ) ) + z;
 
-//   double result = -Rf * sin(y) + cos(p*PI/180) * pow( (pow(hypot,2) + pow(R,2) - 2*hypot*Rf*cos( PI + alpha - y )), -0.5) * hypot*Rf*sin( PI + alpha - y);
+  return result;
+}
 
-//   return result;
-// }
+
+double dlongf(double z, double R, double Rf, double p, double y)
+{
+  double hypot = sqrt( pow(z,2) + pow(R,2) );
+  double alpha = atan( R/z );
+  
+  double result = -Rf * sin(y) + cos(p*PI/180) * pow( (pow(hypot,2) + pow(R,2) - 2*hypot*Rf*cos( PI + alpha - y )), -0.5) * hypot*Rf*sin( PI + alpha - y);
+
+  return result;
+}
 
 
 double mirrorlimitz(double zshift, double Rmirror, double angle)
